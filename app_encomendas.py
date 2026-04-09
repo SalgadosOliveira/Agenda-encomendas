@@ -2,20 +2,52 @@ import streamlit as st
 import pandas as pd
 from datetime import datetime, date, timedelta
 import os
+import urllib.parse
 
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
-    page_title="Agenda de Encomendas",
+    page_title="Salgados Oliveira - Agenda",
     page_icon="📦",
     layout="wide"
 )
 
 ARQUIVO_CSV = "encomendas.csv"
+LOGO_PATH = "logo.png"
+
+# NÚMEROS PARA LEMBRETE WHATSAPP
+NUMEROS_PRODUCAO = ["5587999968632", "5587935001939"]
 
 # FUNÇÕES AUXILIARES
+def atualizar_status_automatico(df):
+    """Marca como Entregue automaticamente se passou da data/hora"""
+    if df.empty:
+        return df
+
+    agora = datetime.now()
+    alterou = False
+
+    for idx, row in df.iterrows():
+        if row['Status']!= 'Entregue':
+            try:
+                data_str = f"{row['Data_Entrega']} {row['Hora_Entrega']}"
+                data_entrega = datetime.strptime(data_str, '%d/%m/%Y %H:%M')
+
+                if agora > data_entrega:
+                    df.loc[idx, 'Status'] = 'Entregue'
+                    alterou = True
+            except:
+                pass
+
+    if alterou:
+        salvar_dados(df)
+
+    return df
+
 def carregar_dados():
     if os.path.exists(ARQUIVO_CSV):
-        return pd.read_csv(ARQUIVO_CSV)
+        df = pd.read_csv(ARQUIVO_CSV)
+        df = atualizar_status_automatico(df)
+        return df
     else:
         df_vazio = pd.DataFrame(columns=[
             'Data_Pedido', 'Cliente', 'Telefone', 'Produto', 'Quantidade',
@@ -29,8 +61,12 @@ def salvar_dados(df):
 
 # TELA DE LOGIN
 def login():
+    if os.path.exists(LOGO_PATH):
+        st.image(LOGO_PATH, width=200)
+
     st.title("📦 Agenda de Encomendas")
-    st.subheader("Faça login para continuar")
+    st.subheader("Salgados Oliveira")
+    st.write("Faça login para continuar")
 
     with st.form("login_form"):
         usuario = st.text_input("Usuário")
@@ -46,8 +82,11 @@ def login():
 
 # APP PRINCIPAL
 def app_principal():
-    st.sidebar.title(f"Bem-vinda!")
-    menu = st.sidebar.selectbox("Menu", ["Dashboard", "Nova Encomenda", "Ver Encomendas", "Editar Status", "Excluir Encomenda"])
+    if os.path.exists(LOGO_PATH):
+        st.sidebar.image(LOGO_PATH, use_column_width=True)
+
+    st.sidebar.title("Salgados Oliveira")
+    menu = st.sidebar.selectbox("Menu", ["Dashboard", "Nova Encomenda", "Ver Encomendas", "Editar Status", "Excluir Encomenda", "Imprimir Semana", "Lembretes WhatsApp", "Configurações"])
 
     if st.sidebar.button("Sair"):
         st.session_state['logado'] = False
@@ -157,6 +196,8 @@ def app_principal():
     # EDITAR STATUS
     elif menu == "Editar Status":
         st.subheader("✏️ Atualizar Status da Encomenda")
+        st.info("💡 Encomendas são marcadas como 'Entregue' automaticamente após a data/hora passar.")
+
         df = carregar_dados()
 
         if df.empty:
@@ -213,10 +254,189 @@ def app_principal():
             confirmar = st.checkbox("Sim, tenho certeza que quero excluir esta encomenda")
 
             if st.button("🗑️ Excluir Definitivamente", type="primary", disabled=not confirmar):
+                nome_cliente = df.loc[index, 'Cliente']
                 df = df.drop(index).reset_index(drop=True)
                 salvar_dados(df)
-                st.success(f"Encomenda de {df.loc[index, 'Cliente']} excluída com sucesso!")
+                st.success(f"Encomenda de {nome_cliente} excluída com sucesso!")
                 st.rerun()
+
+    # IMPRIMIR SEMANA
+    elif menu == "Imprimir Semana":
+        st.subheader("🖨️ Relatório de Entregas da Semana")
+
+        df = carregar_dados()
+
+        if df.empty:
+            st.info("Nenhuma encomenda cadastrada ainda.")
+        else:
+            df['Data_Entrega_dt'] = pd.to_datetime(df['Data_Entrega'], format='%d/%m/%Y', errors='coerce')
+
+            hoje = date.today()
+            inicio_semana_atual = hoje - timedelta(days=hoje.weekday())
+            fim_semana_atual = inicio_semana_atual + timedelta(days=6)
+
+            opcao_semana = st.radio(
+                "Selecione a semana:",
+                ["Semana Atual", "Próxima Semana", "Escolher Data"],
+                horizontal=True
+            )
+
+            if opcao_semana == "Semana Atual":
+                inicio_semana = inicio_semana_atual
+                fim_semana = fim_semana_atual
+            elif opcao_semana == "Próxima Semana":
+                inicio_semana = inicio_semana_atual + timedelta(days=7)
+                fim_semana = inicio_semana + timedelta(days=6)
+            else:
+                data_escolhida = st.date_input("Escolha qualquer data da semana", value=hoje)
+                inicio_semana = data_escolhida - timedelta(days=data_escolhida.weekday())
+                fim_semana = inicio_semana + timedelta(days=6)
+
+            st.write(f"**Período:** {inicio_semana.strftime('%d/%m/%Y')} até {fim_semana.strftime('%d/%m/%Y')}")
+
+            df_semana = df[
+                (df['Data_Entrega_dt'].dt.date >= inicio_semana) &
+                (df['Data_Entrega_dt'].dt.date <= fim_semana) &
+                (df['Status'].isin(['Pendente', 'Em produção', 'Pronto']))
+            ].copy()
+
+            if df_semana.empty:
+                st.info("Nenhuma entrega pendente para esta semana.")
+            else:
+                df_semana = df_semana.sort_values(['Data_Entrega_dt', 'Hora_Entrega'])
+
+                st.divider()
+
+                if st.button("🖨️ Gerar Relatório para Impressão", type="primary", use_container_width=True):
+                    st.markdown("""
+                        <style>
+                        @media print {
+                        .stButton,.stRadio, header, footer, #MainMenu {display: none;}
+                        }
+                        </style>
+                        """, unsafe_allow_html=True)
+
+                    if os.path.exists(LOGO_PATH):
+                        st.image(LOGO_PATH, width=150)
+
+                    total_semana = df_semana['Valor'].sum()
+
+                    st.markdown(f"## 📦 Entregas da Semana - Salgados Oliveira")
+                    st.markdown(f"**Período:** {inicio_semana.strftime('%d/%m/%Y')} até {fim_semana.strftime('%d/%m/%Y')}")
+                    st.markdown(f"**Total de Pedidos:** {len(df_semana)} | **Valor Total:** R$ {total_semana:.2f}")
+                    st.markdown("---")
+
+                    for data, grupo in df_semana.groupby('Data_Entrega'):
+                        st.markdown(f"### 📅 {data}")
+                        for _, row in grupo.iterrows():
+                            st.markdown(f"""
+                            **{row['Hora_Entrega']}** - {row['Cliente']} | {row['Telefone']}
+                            {row['Quantidade']}x {row['Produto']} - **R$ {row['Valor']:.2f}**
+                            Status: {row['Status']} | Obs: {row['Observacoes'] if pd.notna(row['Observacoes']) else '-'}
+                            """)
+                            st.markdown("---")
+
+                    st.info("💡 Para imprimir: aperte Ctrl+P ou Cmd+P no teclado")
+
+    # LEMBRETES WHATSAPP
+    elif menu == "Lembretes WhatsApp":
+        st.subheader("📱 Lembretes para Produção")
+        st.write("Envia mensagem 10h antes da entrega para os números cadastrados.")
+
+        df = carregar_dados()
+
+        if df.empty:
+            st.info("Nenhuma encomenda cadastrada.")
+        else:
+            agora = datetime.now()
+            limite = agora + timedelta(hours=10)
+
+            df_lembretes = df[df['Status'].isin(['Pendente', 'Em produção'])].copy()
+            df_lembretes['Data_Entrega_dt'] = pd.to_datetime(
+                df_lembretes['Data_Entrega'] + ' ' + df_lembretes['Hora_Entrega'],
+                format='%d/%m/%Y %H:%M',
+                errors='coerce'
+            )
+
+            df_lembretes = df_lembretes[
+                (df_lembretes['Data_Entrega_dt'] > agora) &
+                (df_lembretes['Data_Entrega_dt'] <= limite)
+            ].sort_values('Data_Entrega_dt')
+
+            if df_lembretes.empty:
+                st.success("✅ Nenhum lembrete necessário agora. Nenhuma encomenda nas próximas 10 horas.")
+            else:
+                st.warning(f"⚠️ {len(df_lembretes)} encomenda(s) precisa(m) ser produzida(s) nas próximas 10h!")
+
+                for _, row in df_lembretes.iterrows():
+                    tempo_restante = row['Data_Entrega_dt'] - agora
+                    horas = int(tempo_restante.total_seconds() // 3600)
+                    minutos = int((tempo_restante.total_seconds() % 3600) // 60)
+
+                    with st.expander(f"🔔 {row['Cliente']} - Entrega em {horas}h {minutos}min"):
+                        st.write(f"**Cliente:** {row['Cliente']}")
+                        st.write(f"**Produto:** {row['Quantidade']}x {row['Produto']}")
+                        st.write(f"**Entrega:** {row['Data_Entrega']} às {row['Hora_Entrega']}")
+                        st.write(f"**Telefone Cliente:** {row['Telefone']}")
+                        if pd.notna(row['Observacoes']):
+                            st.write(f"**Obs:** {row['Observacoes']}")
+
+                        mensagem = f"""🔔 *LEMBRETE DE PRODUÇÃO - Salgados Oliveira*
+
+*Cliente:* {row['Cliente']}
+*Produto:* {row['Quantidade']}x {row['Produto']}
+*Entrega:* {row['Data_Entrega']} às {row['Hora_Entrega']}
+*Telefone:* {row['Telefone']}
+
+⏰ Faltam {horas}h {minutos}min para a entrega!
+
+{f"Obs: {row['Observacoes']}" if pd.notna(row['Observacoes']) else ""}"""
+
+                        mensagem_encoded = urllib.parse.quote(mensagem)
+
+                        st.divider()
+                        col1, col2 = st.columns(2)
+
+                        for idx, numero in enumerate(NUMEROS_PRODUCAO):
+                            link = f"https://wa.me/{numero}?text={mensagem_encoded}"
+                            coluna = col1 if idx == 0 else col2
+                            coluna.link_button(
+                                f"📱 Enviar para {numero[-9:]}",
+                                link,
+                                use_container_width=True
+                            )
+
+    # CONFIGURAÇÕES
+    elif menu == "Configurações":
+        st.subheader("⚙️ Configurações do App")
+
+        st.write("### Logo da Empresa")
+
+        if os.path.exists(LOGO_PATH):
+            st.write("**Logo atual:**")
+            st.image(LOGO_PATH, width=200)
+            if st.button("Remover Logo Atual"):
+                os.remove(LOGO_PATH)
+                st.success("Logo removida! Atualize a página.")
+                st.rerun()
+
+        st.divider()
+
+        uploaded_file = st.file_uploader("Enviar nova logo", type=['png', 'jpg', 'jpeg'])
+
+        if uploaded_file is not None:
+            with open(LOGO_PATH, "wb") as f:
+                f.write(uploaded_file.getbuffer())
+            st.success("Logo enviada com sucesso! Atualize a página para ver.")
+            st.rerun()
+
+        st.info("💡 Dica: Use uma imagem PNG com fundo transparente, tamanho 400x400px fica perfeito.")
+
+        st.divider()
+        st.write("### Números para Lembretes WhatsApp")
+        st.write("Mensagens são enviadas para:")
+        for num in NUMEROS_PRODUCAO:
+            st.write(f"📱 +{num}")
 
 # CONTROLE DE LOGIN
 if 'logado' not in st.session_state:
