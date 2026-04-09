@@ -122,7 +122,8 @@ def app_principal():
 
             col1, col2, col3, col4 = st.columns(4)
 
-            df_grafico = df[df['Status']!= 'Entregue'].copy()
+            # Gráfico por dia - versão corrigida
+df_grafico = df[df['Status']!= 'Entregue'].copy()
 df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]  # remove datas vazias
 if not df_grafico.empty:
     df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
