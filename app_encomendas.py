@@ -122,4 +122,11 @@ def app_principal():
 
             col1, col2, col3, col4 = st.columns(4)
 
-            fat_hoje = df[(df['Data_Entrega_dt
+            df_grafico = df[df['Status']!= 'Entregue'].copy()
+df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]  # remove datas vazias
+if not df_grafico.empty:
+    df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
+    st.bar_chart(df_chart.set_index('Data_Entrega'))
+else:
+    st.info("Sem dados para exibir no gráfico ainda.")
+        
