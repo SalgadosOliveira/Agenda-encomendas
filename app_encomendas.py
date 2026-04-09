@@ -47,7 +47,7 @@ def login():
 # APP PRINCIPAL
 def app_principal():
     st.sidebar.title(f"Bem-vinda!")
-    menu = st.sidebar.selectbox("Menu", ["Dashboard", "Nova Encomenda", "Ver Encomendas", "Editar Status"])
+    menu = st.sidebar.selectbox("Menu", ["Dashboard", "Nova Encomenda", "Ver Encomendas", "Editar Status", "Excluir Encomenda"])
 
     if st.sidebar.button("Sair"):
         st.session_state['logado'] = False
@@ -181,6 +181,41 @@ def app_principal():
                 df.loc[index, 'Status'] = novo_status
                 salvar_dados(df)
                 st.success("Status atualizado com sucesso!")
+                st.rerun()
+
+    # EXCLUIR ENCOMENDA
+    elif menu == "Excluir Encomenda":
+        st.subheader("🗑️ Excluir Encomenda")
+        st.warning("Atenção: Esta ação não pode ser desfeita!")
+
+        df = carregar_dados()
+
+        if df.empty:
+            st.info("Nenhuma encomenda para excluir.")
+        else:
+            df['Opcao'] = df.index.astype(str) + " - " + df['Cliente'] + " - " + df['Produto'] + " - " + df['Data_Entrega'] + " - R$ " + df['Valor'].astype(str)
+
+            encomenda_selecionada = st.selectbox("Selecione a encomenda para excluir", df['Opcao'])
+            index = int(encomenda_selecionada.split(" - ")[0])
+
+            st.divider()
+            st.write("**Dados da encomenda selecionada:**")
+            col1, col2 = st.columns(2)
+            col1.write(f"**Cliente:** {df.loc[index, 'Cliente']}")
+            col1.write(f"**Produto:** {df.loc[index, 'Produto']}")
+            col1.write(f"**Quantidade:** {df.loc[index, 'Quantidade']}")
+            col2.write(f"**Valor:** R$ {df.loc[index, 'Valor']:.2f}")
+            col2.write(f"**Data Entrega:** {df.loc[index, 'Data_Entrega']}")
+            col2.write(f"**Status:** {df.loc[index, 'Status']}")
+
+            st.divider()
+
+            confirmar = st.checkbox("Sim, tenho certeza que quero excluir esta encomenda")
+
+            if st.button("🗑️ Excluir Definitivamente", type="primary", disabled=not confirmar):
+                df = df.drop(index).reset_index(drop=True)
+                salvar_dados(df)
+                st.success(f"Encomenda de {df.loc[index, 'Cliente']} excluída com sucesso!")
                 st.rerun()
 
 # CONTROLE DE LOGIN
