@@ -114,20 +114,43 @@ def app_principal():
         st.subheader("📊 Dashboard de Faturamento")
 
         if df.empty:
-            st.info("Nenhuma encomenda cadastrada ainda.")
+# DASHBOARD
+if menu == "Dashboard":
+    st.subheader("📊 Dashboard de Faturamento")
+
+    df = carregar_dados()  # ← ESSA LINHA QUE FALTAVA
+
+    if df.empty:
+        st.info("Nenhuma encomenda cadastrada ainda.")
+    else:
+        df['Data_Entrega_dt'] = pd.to_datetime(df['Data_Entrega'], format='%d/%m/%Y', errors='coerce')
+        hoje = date.today()
+        inicio_semana = hoje - timedelta(days=hoje.weekday())
+
+        col1, col2, col3, col4 = st.columns(4)
+
+        fat_hoje = df[(df['Data_Entrega_dt'].dt.date == hoje) & (df['Status']!= 'Entregue')]['Valor'].sum()
+        fat_semana = df[(df['Data_Entrega_dt'].dt.date >= inicio_semana) & (df['Status']!= 'Entregue')]['Valor'].sum()
+        fat_total = df[df['Status'] == 'Entregue']['Valor'].sum()
+        pedidos_pendentes = len(df[df['Status'].isin(['Pendente', 'Em produção', 'Pronto'])])
+
+        col1.metric("Faturamento Hoje", f"R$ {fat_hoje:.2f}")
+        col2.metric("Faturamento Semana", f"R$ {fat_semana:.2f}")
+        col3.metric("Total Já Entregue", f"R$ {fat_total:.2f}")
+        col4.metric("Pedidos Pendentes", pedidos_pendentes)
+
+        st.divider()
+
+        st.subheader("Entregas por Data")
+        df_grafico = df[df['Status']!= 'Entregue'].copy()
+        df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]
+        if not df_grafico.empty:
+            df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
+            st.bar_chart(df_chart.set_index('Data_Entrega'))
         else:
-            df['Data_Entrega_dt'] = pd.to_datetime(df['Data_Entrega'], format='%d/%m/%Y', errors='coerce')
-            hoje = date.today()
-            inicio_semana = hoje - timedelta(days=hoje.weekday())
+            st.info("Sem dados para exibir no gráfico ainda.")
 
-            col1, col2, col3, col4 = st.columns(4)
-
-            # Gráfico por dia - versão corrigida
-df_grafico = df[df['Status']!= 'Entregue'].copy()
-df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]  # remove datas vazias
-if not df_grafico.empty:
-    df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
-    st.bar_chart(df_chart.set_index('Data_Entrega'))
-else:
-    st.info("Sem dados para exibir no gráfico ainda.")
-        
+        st.subheader("Próximas 5 Entregas")
+        proximas = df[df['Status'].isin(['Pendente', 'Em produção', 'Pronto'])].sort_values('Data_Entrega_dt').head(5)
+        for _, row in proximas.iterrows():
+            st.write(f"📅 {row['Data_Entrega']} às {row['Hora_Entrega']} - {row['Cliente']} - R$ {row['Valor']:.2f}")
