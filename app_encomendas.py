@@ -6,41 +6,120 @@ import urllib.parse
 
 # CONFIGURAÇÃO DA PÁGINA
 st.set_page_config(
-    page_title="Salgados Oliveira - Agenda",
-    page_icon="📦",
-    layout="wide"
+    page_title="Salgados Oliveira",
+    page_icon="🥟",
+    layout="wide",
+    initial_sidebar_state="collapsed"
 )
+
+# CSS CUSTOMIZADO - DESIGN PREMIUM
+st.markdown("""
+<style>
+    /* Esconder menu padrão do streamlit */
+    #MainMenu {visibility: hidden;}
+    footer {visibility: hidden;}
+    header {visibility: hidden;}
+
+    /* Cores principais */
+    :root {
+        --primary: #FF6B35;
+        --secondary: #F7931E;
+        --success: #00C851;
+        --danger: #ff4444;
+        --dark: #2E2E2E;
+    }
+
+    /* Container principal */
+   .main {
+        background: linear-gradient(135deg, #FFF5F0 0%, #FFE8D6 100%);
+    }
+
+    /* Cards */
+   .metric-card {
+        background: white;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        border-left: 4px solid var(--primary);
+        margin-bottom: 15px;
+    }
+
+    /* Botões */
+   .stButton>button {
+        border-radius: 10px;
+        border: none;
+        background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+        color: white;
+        font-weight: 600;
+        padding: 12px 24px;
+        transition: all 0.3s;
+    }
+
+   .stButton>button:hover {
+        transform: translateY(-2px);
+        box-shadow: 0 6px 12px rgba(255,107,53,0.3);
+    }
+
+    /* Abas */
+   .stTabs [data-baseweb="tab-list"] {
+        gap: 8px;
+        background-color: white;
+        padding: 10px;
+        border-radius: 15px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+    }
+
+   .stTabs [data-baseweb="tab"] {
+        border-radius: 10px;
+        padding: 10px 20px;
+        font-weight: 600;
+    }
+
+   .stTabs [aria-selected="true"] {
+        background: linear-gradient(135deg, #FF6B35 0%, #F7931E 100%);
+        color: white;
+    }
+
+    /* Título */
+    h1 {
+        color: #2E2E2E;
+        font-weight: 700;
+    }
+
+    /* Login card */
+   .login-container {
+        max-width: 400px;
+        margin: 50px auto;
+        padding: 40px;
+        background: white;
+        border-radius: 20px;
+        box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+    }
+</style>
+""", unsafe_allow_html=True)
 
 ARQUIVO_CSV = "encomendas.csv"
 LOGO_PATH = "logo.png"
-
-# NÚMEROS PARA LEMBRETE WHATSAPP
 NUMEROS_PRODUCAO = ["5587999968632", "5587935001939"]
 
 # FUNÇÕES AUXILIARES
 def atualizar_status_automatico(df):
-    """Marca como Entregue automaticamente se passou da data/hora"""
     if df.empty:
         return df
-
     agora = datetime.now()
     alterou = False
-
     for idx, row in df.iterrows():
         if row['Status']!= 'Entregue':
             try:
                 data_str = f"{row['Data_Entrega']} {row['Hora_Entrega']}"
                 data_entrega = datetime.strptime(data_str, '%d/%m/%Y %H:%M')
-
                 if agora > data_entrega:
                     df.loc[idx, 'Status'] = 'Entregue'
                     alterou = True
             except:
                 pass
-
     if alterou:
         salvar_dados(df)
-
     return df
 
 def carregar_dados():
@@ -59,150 +138,149 @@ def carregar_dados():
 def salvar_dados(df):
     df.to_csv(ARQUIVO_CSV, index=False)
 
-def gerar_relatorio_semana(df, inicio_semana, fim_semana):
-    df_semana = df[
-        (df['Data_Entrega_dt'].dt.date >= inicio_semana) &
-        (df['Data_Entrega_dt'].dt.date <= fim_semana) &
-        (df['Status'].isin(['Pendente', 'Em produção', 'Pronto']))
-    ].copy()
-
-    if df_semana.empty:
-        return "Nenhuma entrega pendente para esta semana."
-
-    df_semana = df_semana.sort_values(['Data_Entrega_dt', 'Hora_Entrega'])
-    total_semana = df_semana['Valor'].sum()
-
-    relatorio = f"*RELATÓRIO SEMANA {inicio_semana.strftime('%d/%m')} a {fim_semana.strftime('%d/%m')}*\n"
-    relatorio += f"Total: {len(df_semana)} pedidos | R$ {total_semana:.2f}\n\n"
-
-    for data, grupo in df_semana.groupby('Data_Entrega'):
-        relatorio += f"📅 {data}\n"
-        for _, row in grupo.iterrows():
-            relatorio += f"- {row['Hora_Entrega']} | {row['Cliente']} | {row['Quantidade']}x {row['Produto']} | R$ {row['Valor']:.2f}\n"
-        relatorio += "\n"
-
-    return relatorio
-
-def gerar_relatorio_mes(df, mes, ano):
-    df_mes = df[
-        (df['Data_Entrega_dt'].dt.month == mes) &
-        (df['Data_Entrega_dt'].dt.year == ano) &
-        (df['Status'].isin(['Pendente', 'Em produção', 'Pronto']))
-    ].copy()
-
-    if df_mes.empty:
-        return "Nenhuma entrega pendente para este mês."
-
-    df_mes = df_mes.sort_values(['Data_Entrega_dt', 'Hora_Entrega'])
-    total_mes = df_mes['Valor'].sum()
-
-    relatorio = f"*RELATÓRIO MÊS {mes}/{ano}*\n"
-    relatorio += f"Total: {len(df_mes)} pedidos | R$ {total_mes:.2f}\n\n"
-
-    for data, grupo in df_mes.groupby('Data_Entrega'):
-        relatorio += f"📅 {data}\n"
-        for _, row in grupo.iterrows():
-            relatorio += f"- {row['Hora_Entrega']} | {row['Cliente']} | {row['Quantidade']}x {row['Produto']} | R$ {row['Valor']:.2f}\n"
-        relatorio += "\n"
-
-    return relatorio
+def card_metrica(titulo, valor, icone, cor):
+    st.markdown(f"""
+        <div class="metric-card" style="border-left-color: {cor};">
+            <div style="display: flex; justify-content: space-between; align-items: center;">
+                <div>
+                    <p style="color: #888; font-size: 14px; margin: 0;">{titulo}</p>
+                    <h2 style="color: #2E2E2E; margin: 5px 0 0 0;">{valor}</h2>
+                </div>
+                <div style="font-size: 40px;">{icone}</div>
+            </div>
+        </div>
+    """, unsafe_allow_html=True)
 
 # TELA DE LOGIN
 def login():
-    if os.path.exists(LOGO_PATH):
-        st.image(LOGO_PATH, width=200)
+    col1, col2, col3 = st.columns([1,2,1])
+    with col2:
+        st.markdown('<div class="login-container">', unsafe_allow_html=True)
 
-    st.title("📦 Agenda de Encomendas")
-    st.subheader("Salgados Oliveira")
-    st.write("Faça login para continuar")
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, width=150)
 
-    with st.form("login_form"):
-        usuario = st.text_input("Usuário")
-        senha = st.text_input("Senha", type="password")
-        entrar = st.form_submit_button("Entrar")
+        st.markdown("<h1 style='text-align: center; color: #FF6B35;'>🥟 Salgados Oliveira</h1>", unsafe_allow_html=True)
+        st.markdown("<p style='text-align: center; color: #888;'>Sistema de Gestão de Encomendas</p>", unsafe_allow_html=True)
+        st.markdown("<br>", unsafe_allow_html=True)
 
-        if entrar:
-            if usuario == "admin" and senha == "admin123":
-                st.session_state['logado'] = True
-                st.rerun()
-            else:
-                st.error("Usuário ou senha incorretos!")
+        with st.form("login_form"):
+            usuario = st.text_input("👤 Usuário", placeholder="Digite seu usuário")
+            senha = st.text_input("🔒 Senha", type="password", placeholder="Digite sua senha")
+            entrar = st.form_submit_button("Entrar", use_container_width=True)
+
+            if entrar:
+                if usuario == "admin" and senha == "admin123":
+                    st.session_state['logado'] = True
+                    st.rerun()
+                else:
+                    st.error("❌ Usuário ou senha incorretos!")
+
+        st.markdown('</div>', unsafe_allow_html=True)
 
 # APP PRINCIPAL
 def app_principal():
-    if os.path.exists(LOGO_PATH):
-        st.sidebar.image(LOGO_PATH, use_column_width=True)
+    # HEADER
+    col1, col2, col3 = st.columns([1,3,1])
+    with col1:
+        if os.path.exists(LOGO_PATH):
+            st.image(LOGO_PATH, width=80)
+    with col2:
+        st.markdown("<h1 style='text-align: center; margin: 0;'>🥟 Salgados Oliveira</h1>", unsafe_allow_html=True)
+    with col3:
+        if st.button("🚪 Sair", use_container_width=True):
+            st.session_state['logado'] = False
+            st.rerun()
 
-    st.sidebar.title("Salgados Oliveira")
-    menu = st.sidebar.selectbox("Menu", ["Dashboard", "Nova Encomenda", "Ver Encomendas", "Editar Status", "Excluir Encomenda", "Imprimir Semana", "Lembretes WhatsApp", "Configurações"])
+    st.markdown("---")
 
-    if st.sidebar.button("Sair"):
-        st.session_state['logado'] = False
-        st.rerun()
+    # ABAS DE NAVEGAÇÃO
+    tab1, tab2, tab3, tab4, tab5, tab6, tab7 = st.tabs([
+        "📊 Dashboard",
+        "➕ Nova",
+        "📋 Ver",
+        "✏️ Editar",
+        "🗑️ Excluir",
+        "🖨️ Relatório",
+        "⚙️ Config"
+    ])
 
-    # DASHBOARD
-    if menu == "Dashboard":
-        st.subheader("📊 Dashboard de Faturamento")
-
+    # ABA 1 - DASHBOARD
+    with tab1:
         df = carregar_dados()
 
         if df.empty:
-            st.info("Nenhuma encomenda cadastrada ainda. Vá em 'Nova Encomenda' para começar.")
+            st.info("📭 Nenhuma encomenda cadastrada ainda. Vá em 'Nova' para começar.")
         else:
             df['Data_Entrega_dt'] = pd.to_datetime(df['Data_Entrega'], format='%d/%m/%Y', errors='coerce')
             hoje = date.today()
             inicio_semana = hoje - timedelta(days=hoje.weekday())
-
-            col1, col2, col3, col4 = st.columns(4)
 
             fat_hoje = df[(df['Data_Entrega_dt'].dt.date == hoje) & (df['Status']!= 'Entregue')]['Valor'].sum()
             fat_semana = df[(df['Data_Entrega_dt'].dt.date >= inicio_semana) & (df['Status']!= 'Entregue')]['Valor'].sum()
             fat_total = df[df['Status'] == 'Entregue']['Valor'].sum()
             pedidos_pendentes = len(df[df['Status'].isin(['Pendente', 'Em produção', 'Pronto'])])
 
-            col1.metric("Faturamento Hoje", f"R$ {fat_hoje:.2f}")
-            col2.metric("Faturamento Semana", f"R$ {fat_semana:.2f}")
-            col3.metric("Total Já Entregue", f"R$ {fat_total:.2f}")
-            col4.metric("Pedidos Pendentes", pedidos_pendentes)
+            col1, col2, col3, col4 = st.columns(4)
+            with col1:
+                card_metrica("Hoje", f"R$ {fat_hoje:.2f}", "💰", "#FF6B35")
+            with col2:
+                card_metrica("Semana", f"R$ {fat_semana:.2f}", "📈", "#F7931E")
+            with col3:
+                card_metrica("Entregue", f"R$ {fat_total:.2f}", "✅", "#00C851")
+            with col4:
+                card_metrica("Pendentes", str(pedidos_pendentes), "⏰", "#ff4444")
 
-            st.divider()
+            st.markdown("<br>", unsafe_allow_html=True)
 
-            st.subheader("Entregas por Data")
-            df_grafico = df[df['Status']!= 'Entregue'].copy()
-            df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]
-            if not df_grafico.empty:
-                df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
-                st.bar_chart(df_chart.set_index('Data_Entrega'))
-            else:
-                st.info("Sem dados para exibir no gráfico ainda.")
+            col1, col2 = st.columns([2,1])
 
-            st.subheader("Próximas 5 Entregas")
-            proximas = df[df['Status'].isin(['Pendente', 'Em produção', 'Pronto'])].sort_values('Data_Entrega_dt').head(5)
-            if not proximas.empty:
-                for _, row in proximas.iterrows():
-                    st.write(f"📅 {row['Data_Entrega']} às {row['Hora_Entrega']} - {row['Cliente']} - R$ {row['Valor']:.2f}")
-            else:
-                st.info("Nenhuma entrega pendente.")
+            with col1:
+                st.subheader("📊 Faturamento por Data")
+                df_grafico = df[df['Status']!= 'Entregue'].copy()
+                df_grafico = df_grafico[df_grafico['Data_Entrega'].notna()]
+                if not df_grafico.empty:
+                    df_chart = df_grafico.groupby('Data_Entrega')['Valor'].sum().reset_index()
+                    st.bar_chart(df_chart.set_index('Data_Entrega'))
+                else:
+                    st.info("Sem dados para exibir ainda.")
 
-    # NOVA ENCOMENDA
-    elif menu == "Nova Encomenda":
+            with col2:
+                st.subheader("🔔 Próximas Entregas")
+                proximas = df[df['Status'].isin(['Pendente', 'Em produção', 'Pronto'])].sort_values('Data_Entrega_dt').head(5)
+                if not proximas.empty:
+                    for _, row in proximas.iterrows():
+                        st.markdown(f"""
+                        <div style='background: white; padding: 12px; border-radius: 10px; margin-bottom: 10px; border-left: 3px solid #FF6B35;'>
+                            <strong>{row['Cliente']}</strong><br>
+                            <span style='color: #888; font-size: 13px;'>📅 {row['Data_Entrega']} às {row['Hora_Entrega']}</span><br>
+                            <span style='color: #FF6B35; font-weight: 600;'>R$ {row['Valor']:.2f}</span>
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("Nenhuma entrega pendente.")
+
+    # ABA 2 - NOVA ENCOMENDA
+    with tab2:
         st.subheader("➕ Cadastrar Nova Encomenda")
 
         with st.form("nova_encomenda", clear_on_submit=True):
             col1, col2 = st.columns(2)
             with col1:
-                cliente = st.text_input("Nome do Cliente*")
-                telefone = st.text_input("Telefone/WhatsApp")
-                produto = st.text_input("Produto*")
+                st.markdown("**Dados do Cliente**")
+                cliente = st.text_input("Nome*", placeholder="Nome completo")
+                telefone = st.text_input("WhatsApp", placeholder="(87) 99999-9999")
+                produto = st.text_input("Produto*", placeholder="Ex: Coxinha, Pastel")
             with col2:
+                st.markdown("**Detalhes do Pedido**")
                 quantidade = st.number_input("Quantidade*", min_value=1, step=1)
                 valor = st.number_input("Valor Total R$*", min_value=0.0, step=0.50, format="%.2f")
                 data_entrega = st.date_input("Data de Entrega*", value=date.today())
                 hora_entrega = st.time_input("Hora de Entrega*")
 
-            observacoes = st.text_area("Observações")
+            observacoes = st.text_area("📝 Observações", placeholder="Alguma observação especial?")
 
-            enviado = st.form_submit_button("Salvar Encomenda")
+            enviado = st.form_submit_button("💾 Salvar Encomenda", use_container_width=True)
 
             if enviado:
                 if cliente and produto and quantidade > 0 and valor > 0:
@@ -221,17 +299,18 @@ def app_principal():
                     }])
                     df = pd.concat([df, nova_linha], ignore_index=True)
                     salvar_dados(df)
-                    st.success(f"Encomenda de {cliente} salva com sucesso!")
+                    st.success(f"✅ Encomenda de {cliente} salva com sucesso!")
+                    st.balloons()
                 else:
-                    st.error("Preencha todos os campos com *")
+                    st.error("❌ Preencha todos os campos com *")
 
-    # VER ENCOMENDAS
-    elif menu == "Ver Encomendas":
+    # ABA 3 - VER ENCOMENDAS
+    with tab3:
         st.subheader("📋 Todas as Encomendas")
         df = carregar_dados()
 
         if df.empty:
-            st.info("Nenhuma encomenda cadastrada ainda.")
+            st.info("📭 Nenhuma encomenda cadastrada ainda.")
         else:
             filtro_status = st.multiselect(
                 "Filtrar por Status",
@@ -239,26 +318,27 @@ def app_principal():
                 default=['Pendente', 'Em produção', 'Pronto']
             )
             df_filtrado = df[df['Status'].isin(filtro_status)]
-            st.dataframe(df_filtrado, use_container_width=True, hide_index=True)
+            st.dataframe(df_filtrado, use_container_width=True, hide_index=True, height=400)
 
-    # EDITAR STATUS
-    elif menu == "Editar Status":
-        st.subheader("✏️ Atualizar Status da Encomenda")
+    # ABA 4 - EDITAR STATUS
+    with tab4:
+        st.subheader("✏️ Atualizar Status")
         st.info("💡 Encomendas são marcadas como 'Entregue' automaticamente após a data/hora passar.")
 
         df = carregar_dados()
 
         if df.empty:
-            st.info("Nenhuma encomenda para editar.")
+            st.info("📭 Nenhuma encomenda para editar.")
         else:
             df['Opcao'] = df.index.astype(str) + " - " + df['Cliente'] + " - " + df['Produto'] + " - " + df['Data_Entrega']
 
             encomenda_selecionada = st.selectbox("Selecione a encomenda", df['Opcao'])
             index = int(encomenda_selecionada.split(" - ")[0])
 
-            st.write(f"**Cliente:** {df.loc[index, 'Cliente']}")
-            st.write(f"**Produto:** {df.loc[index, 'Produto']}")
-            st.write(f"**Status Atual:** {df.loc[index, 'Status']}")
+            col1, col2, col3 = st.columns(3)
+            col1.metric("Cliente", df.loc[index, 'Cliente'])
+            col2.metric("Produto", df.loc[index, 'Produto'])
+            col3.metric("Status Atual", df.loc[index, 'Status'])
 
             novo_status = st.selectbox(
                 "Novo Status",
@@ -266,240 +346,134 @@ def app_principal():
                 index=['Pendente', 'Em produção', 'Pronto', 'Entregue'].index(df.loc[index, 'Status'])
             )
 
-            if st.button("Atualizar Status"):
+            if st.button("✅ Atualizar Status", use_container_width=True):
                 df.loc[index, 'Status'] = novo_status
                 salvar_dados(df)
                 st.success("Status atualizado com sucesso!")
                 st.rerun()
 
-    # EXCLUIR ENCOMENDA
-    elif menu == "Excluir Encomenda":
+    # ABA 5 - EXCLUIR
+    with tab5:
         st.subheader("🗑️ Excluir Encomenda")
-        st.warning("Atenção: Esta ação não pode ser desfeita!")
+        st.warning("⚠️ Atenção: Esta ação não pode ser desfeita!")
 
         df = carregar_dados()
 
         if df.empty:
-            st.info("Nenhuma encomenda para excluir.")
+            st.info("📭 Nenhuma encomenda para excluir.")
         else:
-            df['Opcao'] = df.index.astype(str) + " - " + df['Cliente'] + " - " + df['Produto'] + " - " + df['Data_Entrega'] + " - R$ " + df['Valor'].astype(str)
+            df['Opcao'] = df.index.astype(str) + " - " + df['Cliente'] + " - " + df['Produto'] + " - " + df['Data_Entrega']
 
             encomenda_selecionada = st.selectbox("Selecione a encomenda para excluir", df['Opcao'])
             index = int(encomenda_selecionada.split(" - ")[0])
 
-            st.divider()
-            st.write("**Dados da encomenda selecionada:**")
+            st.markdown("---")
             col1, col2 = st.columns(2)
             col1.write(f"**Cliente:** {df.loc[index, 'Cliente']}")
             col1.write(f"**Produto:** {df.loc[index, 'Produto']}")
-            col1.write(f"**Quantidade:** {df.loc[index, 'Quantidade']}")
             col2.write(f"**Valor:** R$ {df.loc[index, 'Valor']:.2f}")
-            col2.write(f"**Data Entrega:** {df.loc[index, 'Data_Entrega']}")
-            col2.write(f"**Status:** {df.loc[index, 'Status']}")
+            col2.write(f"**Data:** {df.loc[index, 'Data_Entrega']}")
 
-            st.divider()
+            st.markdown("---")
 
             confirmar = st.checkbox("Sim, tenho certeza que quero excluir esta encomenda")
 
-            if st.button("🗑️ Excluir Definitivamente", type="primary", disabled=not confirmar):
+            if st.button("🗑️ Excluir Definitivamente", use_container_width=True, disabled=not confirmar):
                 nome_cliente = df.loc[index, 'Cliente']
                 df = df.drop(index).reset_index(drop=True)
                 salvar_dados(df)
-                st.success(f"Encomenda de {nome_cliente} excluída com sucesso!")
+                st.success(f"Encomenda de {nome_cliente} excluída!")
                 st.rerun()
 
-    # IMPRIMIR SEMANA
-    elif menu == "Imprimir Semana":
-        st.subheader("🖨️ Relatório de Entregas")
+    # ABA 6 - RELATÓRIO
+    with tab6:
+        st.subheader("🖨️ Gerar Relatório")
 
         df = carregar_dados()
 
         if df.empty:
-            st.info("Nenhuma encomenda cadastrada ainda.")
+            st.info("📭 Nenhuma encomenda cadastrada ainda.")
         else:
             df['Data_Entrega_dt'] = pd.to_datetime(df['Data_Entrega'], format='%d/%m/%Y', errors='coerce')
-
             hoje = date.today()
 
-            tipo_relatorio = st.radio(
-                "Tipo de Relatório:",
-                ["Por Semana", "Por Mês"],
-                horizontal=True
-            )
+            tipo = st.radio("Tipo:", ["📅 Por Semana", "📆 Por Mês"], horizontal=True)
 
-            if tipo_relatorio == "Por Semana":
-                inicio_semana_atual = hoje - timedelta(days=hoje.weekday())
-                fim_semana_atual = inicio_semana_atual + timedelta(days=6)
-
-                opcao_semana = st.radio(
-                    "Selecione a semana:",
-                    ["Semana Atual", "Próxima Semana", "Escolher Data"],
-                    horizontal=True
-                )
-
-                if opcao_semana == "Semana Atual":
-                    inicio_semana = inicio_semana_atual
-                    fim_semana = fim_semana_atual
-                elif opcao_semana == "Próxima Semana":
-                    inicio_semana = inicio_semana_atual + timedelta(days=7)
-                    fim_semana = inicio_semana + timedelta(days=6)
-                else:
-                    data_escolhida = st.date_input("Escolha qualquer data da semana", value=hoje)
-                    inicio_semana = data_escolhida - timedelta(days=data_escolhida.weekday())
-                    fim_semana = inicio_semana + timedelta(days=6)
-
-                st.write(f"**Período:** {inicio_semana.strftime('%d/%m/%Y')} até {fim_semana.strftime('%d/%m/%Y')}")
+            if tipo == "📅 Por Semana":
+                inicio = hoje - timedelta(days=hoje.weekday())
+                fim = inicio + timedelta(days=6)
+                st.write(f"**Período:** {inicio.strftime('%d/%m/%Y')} até {fim.strftime('%d/%m/%Y')}")
 
                 df_filtrado = df[
-                    (df['Data_Entrega_dt'].dt.date >= inicio_semana) &
-                    (df['Data_Entrega_dt'].dt.date <= fim_semana) &
+                    (df['Data_Entrega_dt'].dt.date >= inicio) &
+                    (df['Data_Entrega_dt'].dt.date <= fim) &
                     (df['Status'].isin(['Pendente', 'Em produção', 'Pronto']))
                 ].copy()
 
-                relatorio_texto = gerar_relatorio_semana(df, inicio_semana, fim_semana)
-
-            else: # Por Mês
+                relatorio = gerar_relatorio_semana(df, inicio, fim)
+            else:
                 col1, col2 = st.columns(2)
-                mes_selecionado = col1.selectbox("Mês", range(1, 13), index=hoje.month-1, format_func=lambda x: f"{x:02d}")
-                ano_selecionado = col2.number_input("Ano", min_value=2020, max_value=2030, value=hoje.year)
+                mes = col1.selectbox("Mês", range(1, 13), index=hoje.month-1, format_func=lambda x: f"{x:02d}")
+                ano = col2.number_input("Ano", min_value=2020, max_value=2030, value=hoje.year)
 
                 df_filtrado = df[
-                    (df['Data_Entrega_dt'].dt.month == mes_selecionado) &
-                    (df['Data_Entrega_dt'].dt.year == ano_selecionado) &
+                    (df['Data_Entrega_dt'].dt.month == mes) &
+                    (df['Data_Entrega_dt'].dt.year == ano) &
                     (df['Status'].isin(['Pendente', 'Em produção', 'Pronto']))
                 ].copy()
 
-                relatorio_texto = gerar_relatorio_mes(df, mes_selecionado, ano_selecionado)
+                relatorio = gerar_relatorio_mes(df, mes, ano)
 
             if df_filtrado.empty:
                 st.info("Nenhuma entrega pendente para este período.")
             else:
-                df_filtrado = df_filtrado.sort_values(['Data_Entrega_dt', 'Hora_Entrega'])
-
-                st.divider()
-
                 col1, col2 = st.columns(2)
 
                 with col1:
-                    if st.button("🖨️ Gerar Relatório para Impressão", type="primary", use_container_width=True):
-                        st.markdown("""
-                            <style>
-                            @media print {
-                            .stButton,.stRadio, header, footer, #MainMenu {display: none;}
-                            }
-                            </style>
-                            """, unsafe_allow_html=True)
-
+                    if st.button("🖨️ Imprimir", use_container_width=True):
                         if os.path.exists(LOGO_PATH):
                             st.image(LOGO_PATH, width=150)
-
-                        st.markdown(relatorio_texto.replace('\n', ' \n'))
-                        st.info("💡 Para imprimir: aperte Ctrl+P ou Cmd+P no teclado")
+                        st.markdown(relatorio.replace('\n', ' \n'))
+                        st.info("💡 Aperte Ctrl+P ou Cmd+P para imprimir")
 
                 with col2:
-                    mensagem_encoded = urllib.parse.quote(relatorio_texto)
-                    link = f"https://wa.me/?text={mensagem_encoded}"
-                    st.link_button("📱 Compartilhar no WhatsApp", link, use_container_width=True)
+                    link = f"https://wa.me/?text={urllib.parse.quote(relatorio)}"
+                    st.link_button("📱 Compartilhar WhatsApp", link, use_container_width=True)
 
-    # LEMBRETES WHATSAPP
-    elif menu == "Lembretes WhatsApp":
-        st.subheader("📱 Lembretes para Produção")
-        st.write("Envia mensagem 10h antes da entrega para os números cadastrados.")
+    # ABA 7 - CONFIGURAÇÕES
+    with tab7:
+        st.subheader("⚙️ Configurações")
 
-        df = carregar_dados()
+        col1, col2 = st.columns(2)
 
-        if df.empty:
-            st.info("Nenhuma encomenda cadastrada.")
-        else:
-            agora = datetime.now()
-            limite = agora + timedelta(hours=10)
-
-            df_lembretes = df[df['Status'].isin(['Pendente', 'Em produção'])].copy()
-            df_lembretes['Data_Entrega_dt'] = pd.to_datetime(
-                df_lembretes['Data_Entrega'] + ' ' + df_lembretes['Hora_Entrega'],
-                format='%d/%m/%Y %H:%M',
-                errors='coerce'
-            )
-
-            df_lembretes = df_lembretes[
-                (df_lembretes['Data_Entrega_dt'] > agora) &
-                (df_lembretes['Data_Entrega_dt'] <= limite)
-            ].sort_values('Data_Entrega_dt')
-
-            if df_lembretes.empty:
-                st.success("✅ Nenhum lembrete necessário agora. Nenhuma encomenda nas próximas 10 horas.")
+        with col1:
+            st.markdown("**Logo da Empresa**")
+            if os.path.exists(LOGO_PATH):
+                st.image(LOGO_PATH, width=200)
+                if st.button("Remover Logo"):
+                    os.remove(LOGO_PATH)
+                    st.success("Logo removida!")
+                    st.rerun()
             else:
-                st.warning(f"⚠️ {len(df_lembretes)} encomenda(s) precisa(m) ser produzida(s) nas próximas 10h!")
+                st.info("Nenhuma logo enviada")
 
-                for _, row in df_lembretes.iterrows():
-                    tempo_restante = row['Data_Entrega_dt'] - agora
-                    horas = int(tempo_restante.total_seconds() // 3600)
-                    minutos = int((tempo_restante.total_seconds() % 3600) // 60)
-
-                    with st.expander(f"🔔 {row['Cliente']} - Entrega em {horas}h {minutos}min"):
-                        st.write(f"**Cliente:** {row['Cliente']}")
-                        st.write(f"**Produto:** {row['Quantidade']}x {row['Produto']}")
-                        st.write(f"**Entrega:** {row['Data_Entrega']} às {row['Hora_Entrega']}")
-                        st.write(f"**Telefone Cliente:** {row['Telefone']}")
-                        if pd.notna(row['Observacoes']):
-                            st.write(f"**Obs:** {row['Observacoes']}")
-
-                        mensagem = f"""🔔 *LEMBRETE DE PRODUÇÃO - Salgados Oliveira*
-
-*Cliente:* {row['Cliente']}
-*Produto:* {row['Quantidade']}x {row['Produto']}
-*Entrega:* {row['Data_Entrega']} às {row['Hora_Entrega']}
-*Telefone:* {row['Telefone']}
-
-⏰ Faltam {horas}h {minutos}min para a entrega!
-
-{f"Obs: {row['Observacoes']}" if pd.notna(row['Observacoes']) else ""}"""
-
-                        mensagem_encoded = urllib.parse.quote(mensagem)
-
-                        st.divider()
-                        col1, col2 = st.columns(2)
-
-                        for idx, numero in enumerate(NUMEROS_PRODUCAO):
-                            link = f"https://wa.me/{numero}?text={mensagem_encoded}"
-                            coluna = col1 if idx == 0 else col2
-                            coluna.link_button(
-                                f"📱 Enviar para {numero[-9:]}",
-                                link,
-                                use_container_width=True
-                            )
-
-    # CONFIGURAÇÕES
-    elif menu == "Configurações":
-        st.subheader("⚙️ Configurações do App")
-
-        st.write("### Logo da Empresa")
-
-        if os.path.exists(LOGO_PATH):
-            st.write("**Logo atual:**")
-            st.image(LOGO_PATH, width=200)
-            if st.button("Remover Logo Atual"):
-                os.remove(LOGO_PATH)
-                st.success("Logo removida! Atualize a página.")
+            uploaded = st.file_uploader("Enviar logo", type=['png', 'jpg', 'jpeg'])
+            if uploaded:
+                with open(LOGO_PATH, "wb") as f:
+                    f.write(uploaded.getbuffer())
+                st.success("Logo enviada!")
                 st.rerun()
 
-        st.divider()
+        with col2:
+            st.markdown("**Lembretes WhatsApp**")
+            st.info("Mensagens são enviadas para:")
+            for num in NUMEROS_PRODUCAO:
+                st.write(f"📱 +{num}")
 
-        uploaded_file = st.file_uploader("Enviar nova logo", type=['png', 'jpg', 'jpeg'])
-
-        if uploaded_file is not None:
-            with open(LOGO_PATH, "wb") as f:
-                f.write(uploaded_file.getbuffer())
-            st.success("Logo enviada com sucesso! Atualize a página para ver.")
-            st.rerun()
-
-        st.info("💡 Dica: Use uma imagem PNG com fundo transparente, tamanho 400x400px fica perfeito.")
-
-        st.divider()
-        st.write("### Números para Lembretes WhatsApp")
-        st.write("Mensagens são enviadas para:")
-        for num in NUMEROS_PRODUCAO:
-            st.write(f"📱 +{num}")
+            st.markdown("---")
+            st.markdown("**Sobre o App**")
+            st.write("Versão: 2.0")
+            st.write("Desenvolvido para Salgados Oliveira")
 
 # CONTROLE DE LOGIN
 if 'logado' not in st.session_state:
