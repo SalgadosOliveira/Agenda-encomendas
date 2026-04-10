@@ -726,3 +726,47 @@ if st.session_state['logado']:
     app_principal()
 else:
     login()
+import streamlit as st
+from openai import OpenAI
+
+# Coloca a chave da OpenAI
+client = OpenAI(api_key=st.secrets["OPENAI_API_KEY"])
+
+# Adiciona uma aba no sidebar
+with st.sidebar:
+    aba = st.sidebar.tabs(["Encomendas", "Atendimento"])
+
+    with aba[0]:
+        # Seu app antigo aqui
+        st.write("Aqui fica o app de encomendas")
+
+    with aba[1]:
+        st.title("🥟 Atendente Virtual")
+        st.write("Fala comigo para fazer um pedido!")
+
+        if "chat" not in st.session_state:
+            st.session_state.chat = [
+                {"role": "assistant", "content": "Oi! Sou do Salgados Oliveira. O que você quer?"}
+            ]
+
+        # Mostra a conversa
+        for msg in st.session_state.chat:
+            with st.chat_message(msg["role"]):
+                st.markdown(msg["content"])
+
+        # Input do usuário
+        if prompt := st.chat_input("Digite aqui..."):
+            st.session_state.chat.append({"role": "user", "content": prompt})
+            with st.chat_message("user"):
+                st.markdown(prompt)
+
+            # Resposta da IA
+            with st.chat_message("assistant"):
+                with st.spinner("Digitando..."):
+                    response = client.chat.completions.create(
+                        model="gpt-4o-mini",
+                        messages=st.session_state.chat
+                    )
+                    resposta = response.choices[0].message.content
+                    st.session_state.chat.append({"role": "assistant", "content": resposta})
+                    st.markdown(resposta)
